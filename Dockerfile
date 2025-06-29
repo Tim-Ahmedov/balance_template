@@ -17,4 +17,10 @@ RUN apt-get update && apt-get install -y \
 # Установка Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-WORKDIR /var/www/html 
+WORKDIR /var/www/html/app
+
+# Копируем исходники
+COPY ./app /var/www/html/app
+
+# Установка зависимостей и автоприменение миграций при запуске контейнера
+ENTRYPOINT ["/bin/sh", "-c", "composer install --no-interaction && php yii migrate --interactive=0 && php-fpm"] 
