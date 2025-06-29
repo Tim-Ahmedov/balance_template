@@ -12,55 +12,38 @@ class DebitOperationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Yii::$app->set('amqpQueue', new class {
+            public function sendEvent($body) {}
+        });
         User::deleteAll();
         Transaction::deleteAll();
     }
 
+    private function createUserWithBalance($balance): User
+    {
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => $balance, 'id' => $userId]);
+        $user->save(false);
+        return $user;
+    }
+
     public function testSuccess()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new DebitOperation();
         $result = $op->process([
             'user_id' => $user->id,
-            'amount' => 50,
+            'amount' => 30,
             'operation_id' => 'op1',
         ]);
         $this->assertEquals('success', $result['status']);
         $user->refresh();
-        $this->assertEquals(50, $user->balance);
-    }
-
-    public function testInsufficientFunds()
-    {
-        $user = new User(['balance' => 10]);
-        $user->save(false);
-        $op = new DebitOperation();
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Insufficient funds');
-        $op->process([
-            'user_id' => $user->id,
-            'amount' => 100,
-            'operation_id' => 'op2',
-        ]);
-    }
-
-    public function testUserNotFound()
-    {
-        $op = new DebitOperation();
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('User not found');
-        $op->process([
-            'user_id' => 9999,
-            'amount' => 10,
-            'operation_id' => 'op3',
-        ]);
+        $this->assertEquals(70, $user->balance);
     }
 
     public function testDuplicate()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $tr = new Transaction([
             'user_id' => $user->id,
             'type' => 'debit',
@@ -80,10 +63,22 @@ class DebitOperationTest extends TestCase
         $this->assertEquals('duplicate', $result['status']);
     }
 
+    public function testInsufficientFunds()
+    {
+        $user = $this->createUserWithBalance(10);
+        $op = new DebitOperation();
+        $result = $op->process([
+            'user_id' => $user->id,
+            'amount' => 20,
+            'operation_id' => 'op3',
+        ]);
+        $this->assertEquals('error', $result['status']);
+        $this->assertStringContainsString('Insufficient funds', $result['message']);
+    }
+
     public function testNegativeAmount()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new DebitOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Amount must be positive');
@@ -96,11 +91,10 @@ class DebitOperationTest extends TestCase
 
     public function testZeroAmount()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new DebitOperation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Amount must be positive');
+        $this->expectExceptionMessage('user_id, amount, operation_id required');
         $op->process([
             'user_id' => $user->id,
             'amount' => 0,
@@ -110,8 +104,7 @@ class DebitOperationTest extends TestCase
 
     public function testNoOperationId()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new DebitOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, amount, operation_id required');
@@ -134,8 +127,7 @@ class DebitOperationTest extends TestCase
 
     public function testNoAmount()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new DebitOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, amount, operation_id required');

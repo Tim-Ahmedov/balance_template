@@ -49,5 +49,18 @@ services:
       RABBITMQ_DEFAULT_USER: user
       RABBITMQ_DEFAULT_PASS: password
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yii2_worker
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - db
+      - rabbitmq
+    command: >
+      /bin/sh -c "composer install --no-interaction && php yii queue-worker/listen"
+
 volumes:
   db_data: 

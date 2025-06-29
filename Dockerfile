@@ -23,4 +23,4 @@ WORKDIR /var/www/html/app
 COPY ./app /var/www/html/app
 
 # Установка зависимостей и автоприменение миграций при запуске контейнера
-ENTRYPOINT ["/bin/sh", "-c", "composer install --no-interaction && php yii migrate --interactive=0 && php-fpm"] 
+CMD ["/bin/sh", "-c", "composer install --no-interaction && php yii migrate --interactive=0 && php-fpm"] 

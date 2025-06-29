@@ -10,6 +10,7 @@ use yii\db\ActiveRecord;
  * @property string $status
  * @property string $created_at
  * @property string $updated_at
+ * @property string|null $lock_id
  */
 class LockedFunds extends ActiveRecord
 {

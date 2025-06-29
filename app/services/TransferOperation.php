@@ -4,6 +4,7 @@ namespace app\services;
 use app\models\User;
 use app\models\Transaction;
 use Yii;
+use app\services\OperationType;
 
 class TransferOperation
 {
@@ -26,33 +27,46 @@ class TransferOperation
         if ($fromId === $toId) {
             throw new \InvalidArgumentException('Cannot transfer to self');
         }
+        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => OperationType::TRANSFER->value])->exists()) {
+            \Yii::info([
+                'msg' => 'Duplicate transfer',
+                'operation_id' => $operationId,
+                'user_id' => $fromId,
+                'related_user_id' => $toId,
+            ], 'balance.operations');
+            return ['status' => 'duplicate'];
+        }
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $from = User::find()->where(['id' => $fromId])->forUpdate()->one();
-            $to = User::find()->where(['id' => $toId])->forUpdate()->one();
+            $from = User::findForUpdateOrCreate($fromId);
+            $to = User::findForUpdateOrCreate($toId);
             if (!$from || !$to) {
-                throw new \Exception('User(s) not found');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'User(s) not found'];
             }
             if ($from->balance < $amount) {
-                throw new \Exception('Insufficient funds');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Insufficient funds'];
             }
             $from->balance -= $amount;
             $to->balance += $amount;
             if (!$from->save(false) || !$to->save(false)) {
-                throw new \Exception('Failed to update balances');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to update balances'];
             }
             $tr = new Transaction([
                 'user_id' => $fromId,
-                'type' => 'transfer',
+                'related_user_id' => $toId,
+                'type' => OperationType::TRANSFER->value,
                 'amount' => $amount,
                 'status' => 'confirmed',
                 'operation_id' => $operationId,
-                'related_user_id' => $toId,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
             if (!$tr->save(false)) {
-                throw new \Exception('Failed to save transaction');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to save transaction'];
             }
             $transaction->commit();
             \Yii::info([
@@ -63,23 +77,13 @@ class TransferOperation
                 'amount' => $amount,
             ], 'balance.operations');
             Yii::$app->amqpQueue->sendEvent(json_encode([
-                'event' => 'balance_changed',
+                'event' => 'funds_transferred',
                 'user_id' => $fromId,
-                'amount' => -$amount,
-                'operation' => 'transfer',
-                'operation_id' => $operationId,
                 'related_user_id' => $toId,
-                'status' => 'confirmed',
-                'timestamp' => date('c'),
-            ]));
-            Yii::$app->amqpQueue->sendEvent(json_encode([
-                'event' => 'balance_changed',
-                'user_id' => $toId,
                 'amount' => $amount,
-                'operation' => 'transfer',
+                'operation' => OperationType::TRANSFER->value,
                 'operation_id' => $operationId,
-                'related_user_id' => $fromId,
-                'status' => 'confirmed',
+                'status' => 'transferred',
                 'timestamp' => date('c'),
             ]));
             return ['status' => 'success'];
@@ -94,7 +98,7 @@ class TransferOperation
                 'related_user_id' => $data['related_user_id'] ?? null,
                 'error' => $e->getMessage(),
             ], 'balance.operations');
-            throw $e;
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 } 

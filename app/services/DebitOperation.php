@@ -4,6 +4,7 @@ namespace app\services;
 use app\models\User;
 use app\models\Transaction;
 use Yii;
+use app\services\OperationType;
 
 class DebitOperation
 {
@@ -22,7 +23,7 @@ class DebitOperation
         if ($amount <= 0) {
             throw new \InvalidArgumentException('Amount must be positive');
         }
-        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => 'debit'])->exists()) {
+        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => OperationType::DEBIT->value])->exists()) {
             \Yii::info([
                 'msg' => 'Duplicate debit',
                 'operation_id' => $operationId,
@@ -32,20 +33,23 @@ class DebitOperation
         }
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $user = User::find()->where(['id' => $userId])->forUpdate()->one();
+            $user = User::findForUpdateOrCreate($userId);
             if (!$user) {
-                throw new \Exception('User not found');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'User not found'];
             }
             if ($user->balance < $amount) {
-                throw new \Exception('Insufficient funds');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Insufficient funds'];
             }
             $user->balance -= $amount;
             if (!$user->save(false)) {
-                throw new \Exception('Failed to update balance');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to update balance'];
             }
             $tr = new Transaction([
                 'user_id' => $userId,
-                'type' => 'debit',
+                'type' => OperationType::DEBIT->value,
                 'amount' => $amount,
                 'status' => 'confirmed',
                 'operation_id' => $operationId,
@@ -53,7 +57,8 @@ class DebitOperation
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
             if (!$tr->save(false)) {
-                throw new \Exception('Failed to save transaction');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to save transaction'];
             }
             $transaction->commit();
             \Yii::info([
@@ -63,12 +68,12 @@ class DebitOperation
                 'amount' => $amount,
             ], 'balance.operations');
             Yii::$app->amqpQueue->sendEvent(json_encode([
-                'event' => 'balance_changed',
+                'event' => 'funds_debited',
                 'user_id' => $userId,
-                'amount' => -$amount,
-                'operation' => 'debit',
+                'amount' => $amount,
+                'operation' => OperationType::DEBIT->value,
                 'operation_id' => $operationId,
-                'status' => 'confirmed',
+                'status' => 'debited',
                 'timestamp' => date('c'),
             ]));
             return ['status' => 'success'];
@@ -82,7 +87,7 @@ class DebitOperation
                 'user_id' => $data['user_id'] ?? null,
                 'error' => $e->getMessage(),
             ], 'balance.operations');
-            throw $e;
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 } 

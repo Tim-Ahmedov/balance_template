@@ -23,7 +23,8 @@ class OperationProcessorCest
 
     public function debitSuccess(\FunctionalTester $I)
     {
-        $user = new User(['balance' => 100]);
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => 100, 'id' => $userId]);
         $user->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -40,7 +41,8 @@ class OperationProcessorCest
 
     public function debitInsufficientFunds(\FunctionalTester $I)
     {
-        $user = new User(['balance' => 10]);
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => 10, 'id' => $userId]);
         $user->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -51,12 +53,13 @@ class OperationProcessorCest
         ];
         $result = $processor->process($data);
         $I->assertEquals('error', $result['status']);
-        $I->assertStringContainsString('недостаточно', mb_strtolower($result['message']));
+        $I->assertTrue(strpos(mb_strtolower($result['message']), 'insufficient funds') !== false);
     }
 
     public function creditSuccess(\FunctionalTester $I)
     {
-        $user = new User(['balance' => 10]);
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => 10, 'id' => $userId]);
         $user->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -73,9 +76,11 @@ class OperationProcessorCest
 
     public function transferSuccess(\FunctionalTester $I)
     {
-        $from = new User(['balance' => 100]);
+        $fromUserId = random_int(1, 100000);
+        $toUserId = random_int(1, 100000);
+        $from = new User(['balance' => 100, 'id' => $fromUserId]);
         $from->save(false);
-        $to = new User(['balance' => 5]);
+        $to = new User(['balance' => 5, 'id' => $toUserId]);
         $to->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -95,9 +100,11 @@ class OperationProcessorCest
 
     public function transferInsufficientFunds(\FunctionalTester $I)
     {
-        $from = new User(['balance' => 10]);
+        $fromUserId = random_int(1, 100000);
+        $toUserId = random_int(1, 100000);
+        $from = new User(['balance' => 10, 'id' => $fromUserId]);
         $from->save(false);
-        $to = new User(['balance' => 5]);
+        $to = new User(['balance' => 5, 'id' => $toUserId]);
         $to->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -109,12 +116,13 @@ class OperationProcessorCest
         ];
         $result = $processor->process($data);
         $I->assertEquals('error', $result['status']);
-        $I->assertStringContainsString('недостаточно', mb_strtolower($result['message']));
+        $I->assertTrue(strpos(mb_strtolower($result['message']), 'insufficient funds') !== false);
     }
 
     public function lockSuccess(\FunctionalTester $I)
     {
-        $user = new User(['balance' => 100]);
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => 100, 'id' => $userId]);
         $user->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -133,7 +141,8 @@ class OperationProcessorCest
 
     public function lockInsufficientFunds(\FunctionalTester $I)
     {
-        $user = new User(['balance' => 10]);
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => 10, 'id' => $userId]);
         $user->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -145,12 +154,13 @@ class OperationProcessorCest
         ];
         $result = $processor->process($data);
         $I->assertEquals('error', $result['status']);
-        $I->assertStringContainsString('недостаточно', mb_strtolower($result['message']));
+        $I->assertTrue(strpos(mb_strtolower($result['message']), 'insufficient funds') !== false);
     }
 
     public function unlockSuccess(\FunctionalTester $I)
     {
-        $user = new User(['balance' => 100]);
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => 100, 'id' => $userId]);
         $user->save(false);
         $processor = new OperationProcessor();
         // Сначала блокируем
@@ -174,12 +184,13 @@ class OperationProcessorCest
         $I->assertEquals('success', $result['status']);
         $user->refresh();
         $I->assertEquals(100, $user->balance);
-        $I->assertEquals(0, LockedFunds::find()->where(['user_id' => $user->id, 'lock_id' => 'lock-3'])->count());
+        $I->assertEquals(0, LockedFunds::find()->where(['user_id' => $user->id, 'lock_id' => 'lock-3', 'status' => 'locked'])->count());
     }
 
     public function unlockNoLock(\FunctionalTester $I)
     {
-        $user = new User(['balance' => 100]);
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => 100, 'id' => $userId]);
         $user->save(false);
         $processor = new OperationProcessor();
         $data = [
@@ -191,7 +202,7 @@ class OperationProcessorCest
         ];
         $result = $processor->process($data);
         $I->assertEquals('error', $result['status']);
-        $I->assertStringContainsString('не найден', mb_strtolower($result['message']));
+        $I->assertTrue(strpos(mb_strtolower($result['message']), 'locked funds not found or already processed') !== false);
     }
 
     // Можно добавить дополнительные edge-кейсы: нулевые суммы, дубли operation_id, self-transfer и т.д.

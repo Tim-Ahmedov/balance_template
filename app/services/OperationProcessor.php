@@ -6,6 +6,7 @@ use app\models\Transaction;
 use app\models\LockedFunds;
 use Yii;
 use yii\db\Exception;
+use app\services\OperationType;
 
 class OperationProcessor
 {
@@ -15,15 +16,15 @@ class OperationProcessor
             throw new \InvalidArgumentException('Operation type required');
         }
         switch ($data['operation']) {
-            case 'debit':
+            case OperationType::DEBIT->value:
                 return (new DebitOperation())->process($data);
-            case 'credit':
+            case OperationType::CREDIT->value:
                 return (new CreditOperation())->process($data);
-            case 'transfer':
+            case OperationType::TRANSFER->value:
                 return (new TransferOperation())->process($data);
-            case 'lock':
+            case OperationType::LOCK->value:
                 return (new LockOperation())->process($data);
-            case 'unlock':
+            case OperationType::UNLOCK->value:
                 return (new UnlockOperation())->process($data);
             default:
                 throw new \InvalidArgumentException('Unknown operation');

@@ -5,6 +5,7 @@ use app\models\User;
 use app\models\Transaction;
 use app\models\LockedFunds;
 use Yii;
+use app\services\OperationType;
 
 class UnlockOperation
 {
@@ -20,11 +21,11 @@ class UnlockOperation
         $userId = (int)$data['user_id'];
         $amount = (float)$data['amount'];
         $operationId = $data['operation_id'];
-        $lockId = (int)$data['lock_id'];
+        $lockId = $data['lock_id'];
         if ($amount <= 0) {
             throw new \InvalidArgumentException('Amount must be positive');
         }
-        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => 'unlock'])->exists()) {
+        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => OperationType::UNLOCK->value])->exists()) {
             \Yii::info([
                 'msg' => 'Duplicate unlock',
                 'operation_id' => $operationId,
@@ -35,37 +36,43 @@ class UnlockOperation
         }
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $lock = LockedFunds::findOne(['id' => $lockId, 'user_id' => $userId, 'status' => 'locked']);
+            $lock = LockedFunds::findOne(['lock_id' => $lockId, 'user_id' => $userId, 'status' => 'locked']);
             if (!$lock) {
-                throw new \Exception('Locked funds not found or already processed');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Locked funds not found or already processed'];
             }
             if (!empty($data['confirm']) && $data['confirm']) {
                 $lock->status = 'charged';
             } else {
-                $user = User::find()->where(['id' => $userId])->forUpdate()->one();
+                $user = User::findForUpdateOrCreate($userId);
                 if (!$user) {
-                    throw new \Exception('User not found');
+                    $transaction->rollBack();
+                    return ['status' => 'error', 'message' => 'User not found'];
                 }
                 $user->balance += $amount;
                 if (!$user->save(false)) {
-                    throw new \Exception('Failed to update balance');
+                    $transaction->rollBack();
+                    return ['status' => 'error', 'message' => 'Failed to update balance'];
                 }
                 $lock->status = 'unlocked';
             }
             if (!$lock->save(false)) {
-                throw new \Exception('Failed to update locked funds');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to update locked funds'];
             }
             $tr = new Transaction([
                 'user_id' => $userId,
-                'type' => 'unlock',
+                'type' => OperationType::UNLOCK->value,
                 'amount' => $amount,
                 'status' => 'confirmed',
                 'operation_id' => $operationId,
+                'related_user_id' => $lock->user_id,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
             if (!$tr->save(false)) {
-                throw new \Exception('Failed to save transaction');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to save transaction'];
             }
             $transaction->commit();
             \Yii::info([
@@ -79,7 +86,7 @@ class UnlockOperation
                 'event' => 'funds_unlocked',
                 'user_id' => $userId,
                 'amount' => $amount,
-                'operation' => 'unlock',
+                'operation' => OperationType::UNLOCK->value,
                 'operation_id' => $operationId,
                 'lock_id' => $lockId,
                 'status' => !empty($data['confirm']) && $data['confirm'] ? 'charged' : 'unlocked',
@@ -97,7 +104,7 @@ class UnlockOperation
                 'lock_id' => $data['lock_id'] ?? null,
                 'error' => $e->getMessage(),
             ], 'balance.operations');
-            throw $e;
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 } 

@@ -1,5 +1,6 @@
 <?php
 
+use app\controllers\WorkerTestController;
 use yii\debug\Module;
 use yii\caching\FileCache;
 use yii\log\FileTarget;
@@ -54,6 +55,18 @@ $config = [
             'rules' => [
             ],
         ],
+        'amqpQueue' => [
+            'class' => app\components\AmqpQueue::class,
+            'host' => 'rabbitmq',
+            'port' => 5672,
+            'user' => 'user',
+            'pass' => 'password',
+            'vhost' => '/',
+            'queueName' => 'balance',
+        ],
+    ],
+    'controllerMap' => [
+        'worker-test' => WorkerTestController::class,
     ],
     'params' => $params,
 ];

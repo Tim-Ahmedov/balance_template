@@ -10,6 +10,7 @@ class m240610_000003_create_locked_funds_table extends Migration
             'user_id' => $this->integer()->notNull(),
             'amount' => $this->decimal(20, 4)->notNull(),
             'status' => $this->string(32)->notNull(),
+            'lock_id' => $this->string(64)->null()->unique(),
             'created_at' => $this->dateTime()->notNull()->defaultExpression('CURRENT_TIMESTAMP'),
             'updated_at' => $this->dateTime()->notNull()->defaultExpression('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'),
         ]);

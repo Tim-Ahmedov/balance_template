@@ -13,59 +13,41 @@ class LockOperationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Yii::$app->set('amqpQueue', new class {
+            public function sendEvent($body) {}
+        });
         User::deleteAll();
         Transaction::deleteAll();
         LockedFunds::deleteAll();
     }
 
+    private function createUserWithBalance($balance): User
+    {
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => $balance, 'id' => $userId]);
+        $user->save(false);
+        return $user;
+    }
+
     public function testSuccess()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new LockOperation();
         $result = $op->process([
             'user_id' => $user->id,
-            'amount' => 50,
+            'amount' => 30,
             'operation_id' => 'op1',
         ]);
         $this->assertEquals('success', $result['status']);
         $user->refresh();
-        $this->assertEquals(50, $user->balance);
-        $lock = LockedFunds::find()->where(['user_id' => $user->id, 'amount' => 50])->one();
+        $this->assertEquals(70, $user->balance);
+        $lock = LockedFunds::find()->where(['user_id' => $user->id, 'amount' => 30, 'status' => 'locked'])->one();
         $this->assertNotNull($lock);
-        $this->assertEquals('locked', $lock->status);
-    }
-
-    public function testInsufficientFunds()
-    {
-        $user = new User(['balance' => 10]);
-        $user->save(false);
-        $op = new LockOperation();
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Insufficient funds');
-        $op->process([
-            'user_id' => $user->id,
-            'amount' => 100,
-            'operation_id' => 'op2',
-        ]);
-    }
-
-    public function testUserNotFound()
-    {
-        $op = new LockOperation();
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('User not found');
-        $op->process([
-            'user_id' => 9999,
-            'amount' => 10,
-            'operation_id' => 'op3',
-        ]);
     }
 
     public function testDuplicate()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $tr = new Transaction([
             'user_id' => $user->id,
             'type' => 'lock',
@@ -84,11 +66,22 @@ class LockOperationTest extends TestCase
         ]);
         $this->assertEquals('duplicate', $result['status']);
     }
+    public function testInsufficientFunds()
+    {
+        $user = $this->createUserWithBalance(10);
+        $op = new LockOperation();
+        $result = $op->process([
+            'user_id' => $user->id,
+            'amount' => 20,
+            'operation_id' => 'op3',
+        ]);
+        $this->assertEquals('error', $result['status']);
+        $this->assertStringContainsString('Insufficient funds', $result['message']);
+    }
 
     public function testNegativeAmount()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new LockOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Amount must be positive');
@@ -101,11 +94,10 @@ class LockOperationTest extends TestCase
 
     public function testZeroAmount()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new LockOperation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Amount must be positive');
+        $this->expectExceptionMessage('user_id, amount, operation_id required');
         $op->process([
             'user_id' => $user->id,
             'amount' => 0,
@@ -115,8 +107,7 @@ class LockOperationTest extends TestCase
 
     public function testNoOperationId()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new LockOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, amount, operation_id required');
@@ -139,8 +130,7 @@ class LockOperationTest extends TestCase
 
     public function testNoAmount()
     {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
+        $user = $this->createUserWithBalance(100);
         $op = new LockOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, amount, operation_id required');

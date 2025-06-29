@@ -4,6 +4,7 @@ namespace app\services;
 use app\models\User;
 use app\models\Transaction;
 use Yii;
+use app\services\OperationType;
 
 class CreditOperation
 {
@@ -22,7 +23,7 @@ class CreditOperation
         if ($amount <= 0) {
             throw new \InvalidArgumentException('Amount must be positive');
         }
-        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => 'credit'])->exists()) {
+        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => OperationType::CREDIT->value])->exists()) {
             \Yii::info([
                 'msg' => 'Duplicate credit',
                 'operation_id' => $operationId,
@@ -32,17 +33,19 @@ class CreditOperation
         }
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $user = User::find()->where(['id' => $userId])->forUpdate()->one();
+            $user = User::findForUpdateOrCreate($userId);
             if (!$user) {
-                throw new \Exception('User not found');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'User not found'];
             }
             $user->balance += $amount;
             if (!$user->save(false)) {
-                throw new \Exception('Failed to update balance');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to update balance'];
             }
             $tr = new Transaction([
                 'user_id' => $userId,
-                'type' => 'credit',
+                'type' => OperationType::CREDIT->value,
                 'amount' => $amount,
                 'status' => 'confirmed',
                 'operation_id' => $operationId,
@@ -50,7 +53,8 @@ class CreditOperation
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
             if (!$tr->save(false)) {
-                throw new \Exception('Failed to save transaction');
+                $transaction->rollBack();
+                return ['status' => 'error', 'message' => 'Failed to save transaction'];
             }
             $transaction->commit();
             \Yii::info([
@@ -60,12 +64,12 @@ class CreditOperation
                 'amount' => $amount,
             ], 'balance.operations');
             Yii::$app->amqpQueue->sendEvent(json_encode([
-                'event' => 'balance_changed',
+                'event' => 'funds_credited',
                 'user_id' => $userId,
                 'amount' => $amount,
-                'operation' => 'credit',
+                'operation' => OperationType::CREDIT->value,
                 'operation_id' => $operationId,
-                'status' => 'confirmed',
+                'status' => 'credited',
                 'timestamp' => date('c'),
             ]));
             return ['status' => 'success'];
@@ -79,7 +83,7 @@ class CreditOperation
                 'user_id' => $data['user_id'] ?? null,
                 'error' => $e->getMessage(),
             ], 'balance.operations');
-            throw $e;
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 } 

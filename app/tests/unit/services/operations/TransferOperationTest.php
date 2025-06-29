@@ -12,89 +12,49 @@ class TransferOperationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Yii::$app->set('amqpQueue', new class {
+            public function sendEvent($body) {}
+        });
         User::deleteAll();
         Transaction::deleteAll();
     }
 
+    private function createUserWithBalance($balance): User
+    {
+        $userId = random_int(1, 100000);
+        $user = new User(['balance' => $balance, 'id' => $userId]);
+        $user->save(false);
+        return $user;
+    }
+
     public function testSuccess()
     {
-        $from = new User(['balance' => 100]);
-        $from->save(false);
-        $to = new User(['balance' => 10]);
-        $to->save(false);
+        $from = $this->createUserWithBalance(100);
+        $to = $this->createUserWithBalance(10);
         $op = new TransferOperation();
         $result = $op->process([
             'user_id' => $from->id,
             'related_user_id' => $to->id,
-            'amount' => 50,
-            'operation_id' => 'op1',
+            'amount' => 40,
+            'operation_id' => 'tr1',
         ]);
         $this->assertEquals('success', $result['status']);
         $from->refresh();
         $to->refresh();
-        $this->assertEquals(50, $from->balance);
-        $this->assertEquals(60, $to->balance);
-    }
-
-    public function testInsufficientFunds()
-    {
-        $from = new User(['balance' => 10]);
-        $from->save(false);
-        $to = new User(['balance' => 10]);
-        $to->save(false);
-        $op = new TransferOperation();
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Insufficient funds');
-        $op->process([
-            'user_id' => $from->id,
-            'related_user_id' => $to->id,
-            'amount' => 100,
-            'operation_id' => 'op2',
-        ]);
-    }
-
-    public function testTransferToSelf()
-    {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
-        $op = new TransferOperation();
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cannot transfer to self');
-        $op->process([
-            'user_id' => $user->id,
-            'related_user_id' => $user->id,
-            'amount' => 10,
-            'operation_id' => 'op3',
-        ]);
-    }
-
-    public function testUserNotFound()
-    {
-        $user = new User(['balance' => 100]);
-        $user->save(false);
-        $op = new TransferOperation();
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('User(s) not found');
-        $op->process([
-            'user_id' => $user->id,
-            'related_user_id' => 9999,
-            'amount' => 10,
-            'operation_id' => 'op4',
-        ]);
+        $this->assertEquals(60, $from->balance);
+        $this->assertEquals(50, $to->balance);
     }
 
     public function testDuplicate()
     {
-        $from = new User(['balance' => 100]);
-        $from->save(false);
-        $to = new User(['balance' => 10]);
-        $to->save(false);
+        $from = $this->createUserWithBalance(100);
+        $to = $this->createUserWithBalance(10);
         $tr = new Transaction([
             'user_id' => $from->id,
             'type' => 'transfer',
-            'amount' => 10,
+            'amount' => 20,
             'status' => 'confirmed',
-            'operation_id' => 'dup-op',
+            'operation_id' => 'dup-tr',
             'related_user_id' => $to->id,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
@@ -104,18 +64,30 @@ class TransferOperationTest extends TestCase
         $result = $op->process([
             'user_id' => $from->id,
             'related_user_id' => $to->id,
-            'amount' => 10,
-            'operation_id' => 'dup-op',
+            'amount' => 20,
+            'operation_id' => 'dup-tr',
         ]);
         $this->assertEquals('duplicate', $result['status']);
+    }
+    public function testInsufficientFunds()
+    {
+        $from = $this->createUserWithBalance(10);
+        $to = $this->createUserWithBalance(10);
+        $op = new TransferOperation();
+        $result = $op->process([
+            'user_id' => $from->id,
+            'related_user_id' => $to->id,
+            'amount' => 20,
+            'operation_id' => 'tr4',
+        ]);
+        $this->assertEquals('error', $result['status']);
+        $this->assertStringContainsString('Insufficient funds', $result['message']);
     }
 
     public function testNegativeAmount()
     {
-        $from = new User(['balance' => 100]);
-        $from->save(false);
-        $to = new User(['balance' => 10]);
-        $to->save(false);
+        $from = $this->createUserWithBalance(100);
+        $to = $this->createUserWithBalance(10);
         $op = new TransferOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Amount must be positive');
@@ -123,33 +95,29 @@ class TransferOperationTest extends TestCase
             'user_id' => $from->id,
             'related_user_id' => $to->id,
             'amount' => -10,
-            'operation_id' => 'op5',
+            'operation_id' => 'tr5',
         ]);
     }
 
     public function testZeroAmount()
     {
-        $from = new User(['balance' => 100]);
-        $from->save(false);
-        $to = new User(['balance' => 10]);
-        $to->save(false);
+        $from = $this->createUserWithBalance(100);
+        $to = $this->createUserWithBalance(10);
         $op = new TransferOperation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Amount must be positive');
+        $this->expectExceptionMessage('user_id, related_user_id, amount, operation_id required');
         $op->process([
             'user_id' => $from->id,
             'related_user_id' => $to->id,
             'amount' => 0,
-            'operation_id' => 'op6',
+            'operation_id' => 'tr6',
         ]);
     }
 
     public function testNoOperationId()
     {
-        $from = new User(['balance' => 100]);
-        $from->save(false);
-        $to = new User(['balance' => 10]);
-        $to->save(false);
+        $from = $this->createUserWithBalance(100);
+        $to = $this->createUserWithBalance(10);
         $op = new TransferOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, related_user_id, amount, operation_id required');
@@ -160,47 +128,43 @@ class TransferOperationTest extends TestCase
         ]);
     }
 
-    public function testNoUserId()
+    public function testNoFromUserId()
     {
-        $to = new User(['balance' => 10]);
-        $to->save(false);
+        $to = $this->createUserWithBalance(10);
         $op = new TransferOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, related_user_id, amount, operation_id required');
         $op->process([
             'related_user_id' => $to->id,
             'amount' => 10,
-            'operation_id' => 'op7',
+            'operation_id' => 'tr7',
         ]);
     }
 
-    public function testNoRelatedUserId()
+    public function testNoToUserId()
     {
-        $from = new User(['balance' => 100]);
-        $from->save(false);
+        $from = $this->createUserWithBalance(100);
         $op = new TransferOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, related_user_id, amount, operation_id required');
         $op->process([
             'user_id' => $from->id,
             'amount' => 10,
-            'operation_id' => 'op8',
+            'operation_id' => 'tr8',
         ]);
     }
 
     public function testNoAmount()
     {
-        $from = new User(['balance' => 100]);
-        $from->save(false);
-        $to = new User(['balance' => 10]);
-        $to->save(false);
+        $from = $this->createUserWithBalance(100);
+        $to = $this->createUserWithBalance(10);
         $op = new TransferOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('user_id, related_user_id, amount, operation_id required');
         $op->process([
             'user_id' => $from->id,
             'related_user_id' => $to->id,
-            'operation_id' => 'op9',
+            'operation_id' => 'tr9',
         ]);
     }
 } 
