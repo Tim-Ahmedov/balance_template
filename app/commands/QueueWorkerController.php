@@ -1,9 +1,10 @@
 <?php
+
 namespace app\commands;
 
+use app\services\OperationProcessor;
 use Yii;
 use yii\console\Controller;
-use app\services\OperationProcessor;
 
 class QueueWorkerController extends Controller
 {
@@ -18,11 +19,11 @@ class QueueWorkerController extends Controller
                 try {
                     $data = json_decode($msg, true);
                     $result = $processor->process($data);
-                    $this->stdout("[Worker] Processed: ".json_encode($result)."\n");
+                    $this->stdout("[Worker] Processed: " . json_encode($result) . "\n");
                 } catch (\Throwable $e) {
-                    $this->stderr("[Worker] Error: ".$e->getMessage()."\n");
+                    $this->stderr("[Worker] Error: " . $e->getMessage() . "\n");
                 }
             }
         }
     }
-} 
+}

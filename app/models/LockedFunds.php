@@ -1,4 +1,5 @@
 <?php
+
 namespace app\models;
 
 use yii\db\ActiveRecord;
@@ -18,4 +19,4 @@ class LockedFunds extends ActiveRecord
     {
         return 'locked_funds';
     }
-} 
+}

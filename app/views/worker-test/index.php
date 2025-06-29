@@ -13,7 +13,7 @@ $this->params['breadcrumbs'][] = $this->title;
 <div class="worker-test-index">
     <h1><?= Html::encode($this->title) ?></h1>
 
-    <?php if ($result): ?>
+    <?php if ($result) : ?>
         <div class="alert alert-success"><?= Html::encode($result) ?></div>
     <?php endif; ?>
 
@@ -29,7 +29,7 @@ $this->params['breadcrumbs'][] = $this->title;
 
     <?= $form->field($model, 'user_id')->textInput() ?>
     <?= $form->field($model, 'amount')->textInput() ?>
-    <?= $form->field($model, 'operation_id')->textInput(['value' => rand(1000,9999)]) ?>
+    <?= $form->field($model, 'operation_id')->textInput(['value' => rand(1000, 9999)]) ?>
     <?= $form->field($model, 'to_user_id')->textInput() ?>
     <?= $form->field($model, 'lock_id')->textInput() ?>
     <?= $form->field($model, 'confirm')->checkbox() ?>

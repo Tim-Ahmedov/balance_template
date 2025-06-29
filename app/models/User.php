@@ -1,4 +1,5 @@
 <?php
+
 namespace app\models;
 
 use common\components\helpers\ArrayHelper;
@@ -38,4 +39,4 @@ class User extends ActiveRecord
 
         return static::findBySql($sql . ' FOR UPDATE')->one();
     }
-} 
+}

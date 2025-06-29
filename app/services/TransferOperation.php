@@ -1,10 +1,10 @@
 <?php
+
 namespace app\services;
 
-use app\models\User;
 use app\models\Transaction;
+use app\models\User;
 use Yii;
-use app\services\OperationType;
 
 class TransferOperation
 {
@@ -40,10 +40,6 @@ class TransferOperation
         try {
             $from = User::findForUpdateOrCreate($fromId);
             $to = User::findForUpdateOrCreate($toId);
-            if (!$from || !$to) {
-                $transaction->rollBack();
-                return ['status' => 'error', 'message' => 'User(s) not found'];
-            }
             if ($from->balance < $amount) {
                 $transaction->rollBack();
                 return ['status' => 'error', 'message' => 'Insufficient funds'];
@@ -85,20 +81,18 @@ class TransferOperation
                 'operation_id' => $operationId,
                 'status' => 'transferred',
                 'timestamp' => date('c'),
-            ]));
+            ], JSON_THROW_ON_ERROR));
             return ['status' => 'success'];
         } catch (\Throwable $e) {
-            if (isset($transaction) && $transaction->isActive) {
-                $transaction->rollBack();
-            }
+            $transaction->rollBack();
             \Yii::error([
                 'msg' => 'Transfer error',
-                'operation_id' => $data['operation_id'] ?? null,
-                'user_id' => $data['user_id'] ?? null,
-                'related_user_id' => $data['related_user_id'] ?? null,
+                'operation_id' => $data['operation_id'],
+                'user_id' => $data['user_id'],
+                'related_user_id' => $data['related_user_id'],
                 'error' => $e->getMessage(),
             ], 'balance.operations');
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
-} 
+}

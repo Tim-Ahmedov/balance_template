@@ -1,4 +1,5 @@
 <?php
+
 namespace app\commands;
 
 use Yii;
@@ -31,7 +32,7 @@ class QueueTestController extends Controller
             'operation_id' => $operationId,
         ];
         Yii::$app->amqpQueue->send(json_encode($msg));
-        $this->stdout("[x] Sent debit: ".json_encode($msg)."\n");
+        $this->stdout("[x] Sent debit: " . json_encode($msg) . "\n");
     }
 
     public function actionSendCredit($userId, $amount, $operationId)
@@ -43,7 +44,7 @@ class QueueTestController extends Controller
             'operation_id' => $operationId,
         ];
         Yii::$app->amqpQueue->send(json_encode($msg));
-        $this->stdout("[x] Sent credit: ".json_encode($msg)."\n");
+        $this->stdout("[x] Sent credit: " . json_encode($msg) . "\n");
     }
 
     public function actionSendLock($userId, $amount, $operationId)
@@ -55,7 +56,7 @@ class QueueTestController extends Controller
             'operation_id' => $operationId,
         ];
         Yii::$app->amqpQueue->send(json_encode($msg));
-        $this->stdout("[x] Sent lock: ".json_encode($msg)."\n");
+        $this->stdout("[x] Sent lock: " . json_encode($msg) . "\n");
     }
 
     public function actionSendUnlock($userId, $amount, $lockId, $operationId, $confirm = 0)
@@ -69,7 +70,7 @@ class QueueTestController extends Controller
             'confirm' => (bool)$confirm,
         ];
         Yii::$app->amqpQueue->send(json_encode($msg));
-        $this->stdout("[x] Sent unlock: ".json_encode($msg)."\n");
+        $this->stdout("[x] Sent unlock: " . json_encode($msg) . "\n");
     }
 
     public function actionSendTransfer($fromId, $toId, $amount, $operationId)
@@ -82,6 +83,6 @@ class QueueTestController extends Controller
             'operation_id' => $operationId,
         ];
         Yii::$app->amqpQueue->send(json_encode($msg));
-        $this->stdout("[x] Sent transfer: ".json_encode($msg)."\n");
+        $this->stdout("[x] Sent transfer: " . json_encode($msg) . "\n");
     }
-} 
+}

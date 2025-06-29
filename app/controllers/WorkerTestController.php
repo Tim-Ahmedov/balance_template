@@ -1,4 +1,5 @@
 <?php
+
 namespace app\controllers;
 
 use app\models\User;
@@ -58,4 +59,4 @@ class WorkerTestController extends Controller
             'dataProvider' => $dataProvider,
         ]);
     }
-} 
+}

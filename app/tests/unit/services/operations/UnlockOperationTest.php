@@ -1,12 +1,13 @@
 <?php
+
 namespace tests\unit\services\operations;
 
-use app\models\User;
-use app\models\Transaction;
 use app\models\LockedFunds;
+use app\models\Transaction;
+use app\models\User;
 use app\services\UnlockOperation;
-use Yii;
 use PHPUnit\Framework\TestCase;
+use Yii;
 
 class UnlockOperationTest extends TestCase
 {
@@ -15,7 +16,9 @@ class UnlockOperationTest extends TestCase
         parent::setUp();
         // Мокаем компонент amqpQueue
         Yii::$app->set('amqpQueue', new class {
-            public function sendEvent($body) {}
+            public function sendEvent($body)
+            {
+            }
         });
         User::deleteAll();
         Transaction::deleteAll();
@@ -180,4 +183,4 @@ class UnlockOperationTest extends TestCase
             'lock_id' => $lock->id,
         ]);
     }
-} 
+}

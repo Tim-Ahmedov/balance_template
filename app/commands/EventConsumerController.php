@@ -1,4 +1,5 @@
 <?php
+
 namespace app\commands;
 
 use Yii;
@@ -23,9 +24,9 @@ class EventConsumerController extends Controller
         while (true) {
             $message = $consumer->receive($timeout * 1000);
             if ($message) {
-                $this->stdout("[EventConsumer] Received event: ".$message->getBody()."\n");
+                $this->stdout("[EventConsumer] Received event: " . $message->getBody() . "\n");
                 $consumer->acknowledge($message);
             }
         }
     }
-} 
+}

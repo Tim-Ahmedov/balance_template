@@ -1,11 +1,12 @@
 <?php
+
 namespace tests\unit\services\operations;
 
-use app\models\User;
 use app\models\Transaction;
+use app\models\User;
 use app\services\CreditOperation;
-use Yii;
 use PHPUnit\Framework\TestCase;
+use Yii;
 
 class CreditOperationTest extends TestCase
 {
@@ -14,7 +15,9 @@ class CreditOperationTest extends TestCase
         parent::setUp();
         // Мокаем компонент amqpQueue
         Yii::$app->set('amqpQueue', new class {
-            public function sendEvent($body) {}
+            public function sendEvent($body)
+            {
+            }
         });
         User::deleteAll();
         Transaction::deleteAll();
@@ -124,4 +127,4 @@ class CreditOperationTest extends TestCase
             'operation_id' => 'op6',
         ]);
     }
-} 
+}

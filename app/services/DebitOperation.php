@@ -1,10 +1,10 @@
 <?php
+
 namespace app\services;
 
-use app\models\User;
 use app\models\Transaction;
+use app\models\User;
 use Yii;
-use app\services\OperationType;
 
 class DebitOperation
 {
@@ -34,10 +34,6 @@ class DebitOperation
         $transaction = Yii::$app->db->beginTransaction();
         try {
             $user = User::findForUpdateOrCreate($userId);
-            if (!$user) {
-                $transaction->rollBack();
-                return ['status' => 'error', 'message' => 'User not found'];
-            }
             if ($user->balance < $amount) {
                 $transaction->rollBack();
                 return ['status' => 'error', 'message' => 'Insufficient funds'];
@@ -75,19 +71,17 @@ class DebitOperation
                 'operation_id' => $operationId,
                 'status' => 'debited',
                 'timestamp' => date('c'),
-            ]));
+            ], JSON_THROW_ON_ERROR));
             return ['status' => 'success'];
         } catch (\Throwable $e) {
-            if (isset($transaction) && $transaction->isActive) {
-                $transaction->rollBack();
-            }
+            $transaction->rollBack();
             \Yii::error([
                 'msg' => 'Debit error',
-                'operation_id' => $data['operation_id'] ?? null,
-                'user_id' => $data['user_id'] ?? null,
+                'operation_id' => $data['operation_id'],
+                'user_id' => $data['user_id'],
                 'error' => $e->getMessage(),
             ], 'balance.operations');
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
-} 
+}

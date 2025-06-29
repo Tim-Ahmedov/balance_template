@@ -1,9 +1,10 @@
 <?php
+
 namespace tests\functional;
 
-use app\models\User;
-use app\models\Transaction;
 use app\models\LockedFunds;
+use app\models\Transaction;
+use app\models\User;
 use app\services\OperationProcessor;
 use Yii;
 
@@ -13,7 +14,9 @@ class OperationProcessorCest
     {
         // Отключаем отправку событий в очередь
         Yii::$app->set('amqpQueue', new class {
-            public function sendEvent($body) {}
+            public function sendEvent($body)
+            {
+            }
         });
         // Очистка таблиц
         User::deleteAll();
@@ -206,4 +209,4 @@ class OperationProcessorCest
     }
 
     // Можно добавить дополнительные edge-кейсы: нулевые суммы, дубли operation_id, self-transfer и т.д.
-} 
+}

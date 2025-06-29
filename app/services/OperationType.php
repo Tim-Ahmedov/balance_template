@@ -1,4 +1,5 @@
 <?php
+
 namespace app\services;
 
 enum OperationType: string
@@ -8,4 +9,4 @@ enum OperationType: string
     case TRANSFER = 'transfer';
     case LOCK = 'lock';
     case UNLOCK = 'unlock';
-} 
+}

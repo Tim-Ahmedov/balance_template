@@ -1,11 +1,11 @@
 <?php
+
 namespace app\services;
 
-use app\models\User;
-use app\models\Transaction;
 use app\models\LockedFunds;
+use app\models\Transaction;
+use app\models\User;
 use Yii;
-use app\services\OperationType;
 
 class UnlockOperation
 {
@@ -41,14 +41,10 @@ class UnlockOperation
                 $transaction->rollBack();
                 return ['status' => 'error', 'message' => 'Locked funds not found or already processed'];
             }
-            if (!empty($data['confirm']) && $data['confirm']) {
+            if (!empty($data['confirm'])) {
                 $lock->status = 'charged';
             } else {
                 $user = User::findForUpdateOrCreate($userId);
-                if (!$user) {
-                    $transaction->rollBack();
-                    return ['status' => 'error', 'message' => 'User not found'];
-                }
                 $user->balance += $amount;
                 if (!$user->save(false)) {
                     $transaction->rollBack();
@@ -89,22 +85,20 @@ class UnlockOperation
                 'operation' => OperationType::UNLOCK->value,
                 'operation_id' => $operationId,
                 'lock_id' => $lockId,
-                'status' => !empty($data['confirm']) && $data['confirm'] ? 'charged' : 'unlocked',
+                'status' => !empty($data['confirm']) ? 'charged' : 'unlocked',
                 'timestamp' => date('c'),
-            ]));
+            ], JSON_THROW_ON_ERROR));
             return ['status' => 'success'];
         } catch (\Throwable $e) {
-            if (isset($transaction) && $transaction->isActive) {
-                $transaction->rollBack();
-            }
+            $transaction->rollBack();
             \Yii::error([
                 'msg' => 'Unlock error',
-                'operation_id' => $data['operation_id'] ?? null,
-                'user_id' => $data['user_id'] ?? null,
-                'lock_id' => $data['lock_id'] ?? null,
+                'operation_id' => $data['operation_id'],
+                'user_id' => $data['user_id'],
+                'lock_id' => $data['lock_id'],
                 'error' => $e->getMessage(),
             ], 'balance.operations');
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
-} 
+}

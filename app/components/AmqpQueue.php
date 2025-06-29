@@ -1,11 +1,11 @@
 <?php
+
 namespace app\components;
 
 use Enqueue\AmqpLib\AmqpConnectionFactory;
 use Interop\Amqp\AmqpQueue as InteropAmqpQueue;
 use Interop\Queue\Context;
 use yii\base\Component;
-use Interop\Amqp\Impl\AmqpBind;
 
 class AmqpQueue extends Component
 {
@@ -65,4 +65,4 @@ class AmqpQueue extends Component
         $message = $this->context->createMessage($body);
         $this->context->createProducer()->send($eventExchange, $message);
     }
-} 
+}

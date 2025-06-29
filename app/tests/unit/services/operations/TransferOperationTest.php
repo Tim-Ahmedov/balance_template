@@ -1,11 +1,12 @@
 <?php
+
 namespace tests\unit\services\operations;
 
-use app\models\User;
 use app\models\Transaction;
+use app\models\User;
 use app\services\TransferOperation;
-use Yii;
 use PHPUnit\Framework\TestCase;
+use Yii;
 
 class TransferOperationTest extends TestCase
 {
@@ -13,7 +14,9 @@ class TransferOperationTest extends TestCase
     {
         parent::setUp();
         Yii::$app->set('amqpQueue', new class {
-            public function sendEvent($body) {}
+            public function sendEvent($body)
+            {
+            }
         });
         User::deleteAll();
         Transaction::deleteAll();
@@ -167,4 +170,4 @@ class TransferOperationTest extends TestCase
             'operation_id' => 'tr9',
         ]);
     }
-} 
+}

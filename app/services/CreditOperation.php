@@ -1,10 +1,10 @@
 <?php
+
 namespace app\services;
 
-use app\models\User;
 use app\models\Transaction;
+use app\models\User;
 use Yii;
-use app\services\OperationType;
 
 class CreditOperation
 {
@@ -34,10 +34,6 @@ class CreditOperation
         $transaction = Yii::$app->db->beginTransaction();
         try {
             $user = User::findForUpdateOrCreate($userId);
-            if (!$user) {
-                $transaction->rollBack();
-                return ['status' => 'error', 'message' => 'User not found'];
-            }
             $user->balance += $amount;
             if (!$user->save(false)) {
                 $transaction->rollBack();
@@ -71,19 +67,17 @@ class CreditOperation
                 'operation_id' => $operationId,
                 'status' => 'credited',
                 'timestamp' => date('c'),
-            ]));
+            ], JSON_THROW_ON_ERROR));
             return ['status' => 'success'];
         } catch (\Throwable $e) {
-            if (isset($transaction) && $transaction->isActive) {
-                $transaction->rollBack();
-            }
+            $transaction->rollBack();
             \Yii::error([
                 'msg' => 'Credit error',
-                'operation_id' => $data['operation_id'] ?? null,
-                'user_id' => $data['user_id'] ?? null,
+                'operation_id' => $data['operation_id'],
+                'user_id' => $data['user_id'],
                 'error' => $e->getMessage(),
             ], 'balance.operations');
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
-} 
+}
