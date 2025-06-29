@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<ruleset name="Yii2 Project PSR-12">
+    <description>PHP CodeSniffer config for Yii2 project</description>
+    <arg name="colors"/>
+
+    <rule ref="PSR12" />
+
+    <exclude-pattern>vendor/*</exclude-pattern>
+    <exclude-pattern>migrations/*</exclude-pattern>
+    <exclude-pattern>runtime/*</exclude-pattern>
+    <exclude-pattern>web/assets/*</exclude-pattern>
+    <exclude-pattern>*.js</exclude-pattern>
+    <exclude-pattern>*.css</exclude-pattern>
+    <exclude-pattern>*.json</exclude-pattern>
+
+    <file>.</file>
+</ruleset>

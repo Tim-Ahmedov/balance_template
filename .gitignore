@@ -1,0 +1,44 @@
+# Yii2 runtime and vendor
+/app/runtime/
+/app/web/assets/
+/app/vendor/
+
+# Composer
+composer.lock
+composer.phar
+
+# Environment configs
+/app/config/db.php
+/app/config/test_db.php
+/app/config/params-local.php
+
+# Codeception output
+/app/tests/_output/
+/app/tests/_support/_generated/
+
+# Logs
+/app/runtime/logs/
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+/.docker/
+
+# Node/npm
+node_modules/
+
+# Other
+.env
+.env.*
+
+# User uploads (if any)
+/app/web/uploads/ 

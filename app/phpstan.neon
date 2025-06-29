@@ -1,0 +1,20 @@
+includes:
+        - vendor/yii2-extensions/phpstan/extension.neon
+parameters:
+    level: 5
+    paths:
+        - services
+        - commands
+        - controllers
+        - models
+        - components
+    bootstrapFiles:
+        - vendor/yiisoft/yii2/Yii.php
+    yii2:
+        config_path: ./config/phpstan.php
+        component_generics:
+            user: identityClass      # Built-in (already configured)
+            repository: modelClass   # Custom generic component
+
+    ignoreErrors:
+        - '#Call to an undefined method#'
