@@ -8,43 +8,37 @@ use Yii;
 
 class CreditOperation
 {
-    public function process(array $data)
+    public function process(OperationData $data)
     {
         \Yii::info([
             'msg' => 'Start credit',
-            'data' => $data,
+            'data' => (array)$data,
         ], 'balance.operations');
-        if (empty($data['user_id']) || empty($data['amount']) || empty($data['operation_id'])) {
-            throw new \InvalidArgumentException('user_id, amount, operation_id required');
-        }
-        $userId = (int)$data['user_id'];
-        $amount = (float)$data['amount'];
-        $operationId = $data['operation_id'];
-        if ($amount <= 0) {
+        if ($data->amount <= 0) {
             throw new \InvalidArgumentException('Amount must be positive');
         }
-        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => OperationType::CREDIT->value])->exists()) {
+        if (Transaction::find()->where(['operation_id' => $data->operation_id, 'type' => OperationType::CREDIT->value])->exists()) {
             \Yii::info([
                 'msg' => 'Duplicate credit',
-                'operation_id' => $operationId,
-                'user_id' => $userId,
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
             ], 'balance.operations');
             return ['status' => 'duplicate'];
         }
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $user = User::findForUpdateOrCreate($userId);
-            $user->balance += $amount;
+            $user = User::findForUpdateOrCreate($data->user_id);
+            $user->balance += $data->amount;
             if (!$user->save(false)) {
                 $transaction->rollBack();
                 return ['status' => 'error', 'message' => 'Failed to update balance'];
             }
             $tr = new Transaction([
-                'user_id' => $userId,
+                'user_id' => $data->user_id,
                 'type' => OperationType::CREDIT->value,
-                'amount' => $amount,
+                'amount' => $data->amount,
                 'status' => 'confirmed',
-                'operation_id' => $operationId,
+                'operation_id' => $data->operation_id,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
@@ -55,16 +49,16 @@ class CreditOperation
             $transaction->commit();
             \Yii::info([
                 'msg' => 'Credit success',
-                'operation_id' => $operationId,
-                'user_id' => $userId,
-                'amount' => $amount,
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
+                'amount' => $data->amount,
             ], 'balance.operations');
             Yii::$app->amqpQueue->sendEvent(json_encode([
                 'event' => 'funds_credited',
-                'user_id' => $userId,
-                'amount' => $amount,
+                'user_id' => $data->user_id,
+                'amount' => $data->amount,
                 'operation' => OperationType::CREDIT->value,
-                'operation_id' => $operationId,
+                'operation_id' => $data->operation_id,
                 'status' => 'credited',
                 'timestamp' => date('c'),
             ], JSON_THROW_ON_ERROR));
@@ -73,8 +67,8 @@ class CreditOperation
             $transaction->rollBack();
             \Yii::error([
                 'msg' => 'Credit error',
-                'operation_id' => $data['operation_id'],
-                'user_id' => $data['user_id'],
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
                 'error' => $e->getMessage(),
             ], 'balance.operations');
             return ['status' => 'error', 'message' => $e->getMessage()];

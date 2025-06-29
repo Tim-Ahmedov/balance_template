@@ -9,53 +9,47 @@ use Yii;
 
 class LockOperation
 {
-    public function process(array $data)
+    public function process(OperationData $data)
     {
         \Yii::info([
             'msg' => 'Start lock',
-            'data' => $data,
+            'data' => (array)$data,
         ], 'balance.operations');
-        if (empty($data['user_id']) || empty($data['amount']) || empty($data['operation_id'])) {
-            throw new \InvalidArgumentException('user_id, amount, operation_id required');
-        }
-        $userId = (int)$data['user_id'];
-        $amount = (float)$data['amount'];
-        $operationId = $data['operation_id'];
-        if ($amount <= 0) {
+        if ($data->amount <= 0) {
             throw new \InvalidArgumentException('Amount must be positive');
         }
-        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => OperationType::LOCK->value])->exists()) {
+        if (Transaction::find()->where(['operation_id' => $data->operation_id, 'type' => OperationType::LOCK->value])->exists()) {
             \Yii::info([
                 'msg' => 'Duplicate lock',
-                'operation_id' => $operationId,
-                'user_id' => $userId,
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
             ], 'balance.operations');
             return ['status' => 'duplicate'];
         }
-        $lockId = $data['lock_id'] ?? null;
+        $lockId = $data->lock_id;
         if ($lockId && LockedFunds::find()->where(['lock_id' => $lockId])->exists()) {
             \Yii::info([
                 'msg' => 'Duplicate lock by lock_id',
                 'lock_id' => $lockId,
-                'user_id' => $userId,
+                'user_id' => $data->user_id,
             ], 'balance.operations');
             return ['status' => 'duplicate'];
         }
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $user = User::findForUpdateOrCreate($userId);
-            if ($user->balance < $amount) {
+            $user = User::findForUpdateOrCreate($data->user_id);
+            if ($user->balance < $data->amount) {
                 $transaction->rollBack();
                 return ['status' => 'error', 'message' => 'Insufficient funds'];
             }
-            $user->balance -= $amount;
+            $user->balance -= $data->amount;
             if (!$user->save(false)) {
                 $transaction->rollBack();
                 return ['status' => 'error', 'message' => 'Failed to update balance'];
             }
             $lock = new LockedFunds([
-                'user_id' => $userId,
-                'amount' => $amount,
+                'user_id' => $data->user_id,
+                'amount' => $data->amount,
                 'status' => 'locked',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -66,11 +60,11 @@ class LockOperation
                 return ['status' => 'error', 'message' => 'Failed to save locked funds'];
             }
             $tr = new Transaction([
-                'user_id' => $userId,
+                'user_id' => $data->user_id,
                 'type' => OperationType::LOCK->value,
-                'amount' => $amount,
+                'amount' => $data->amount,
                 'status' => 'confirmed',
-                'operation_id' => $operationId,
+                'operation_id' => $data->operation_id,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
@@ -81,16 +75,16 @@ class LockOperation
             $transaction->commit();
             \Yii::info([
                 'msg' => 'Lock success',
-                'operation_id' => $operationId,
-                'user_id' => $userId,
-                'amount' => $amount,
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
+                'amount' => $data->amount,
             ], 'balance.operations');
             Yii::$app->amqpQueue->sendEvent(json_encode([
                 'event' => 'funds_locked',
-                'user_id' => $userId,
-                'amount' => $amount,
+                'user_id' => $data->user_id,
+                'amount' => $data->amount,
                 'operation' => OperationType::LOCK->value,
-                'operation_id' => $operationId,
+                'operation_id' => $data->operation_id,
                 'lock_id' => $lockId,
                 'status' => 'locked',
                 'timestamp' => date('c'),
@@ -100,8 +94,8 @@ class LockOperation
             $transaction->rollBack();
             \Yii::error([
                 'msg' => 'Lock error',
-                'operation_id' => $data['operation_id'],
-                'user_id' => $data['user_id'],
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
                 'error' => $e->getMessage(),
             ], 'balance.operations');
             return ['status' => 'error', 'message' => $e->getMessage()];

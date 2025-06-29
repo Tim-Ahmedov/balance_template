@@ -4,12 +4,12 @@ namespace app\services;
 
 class OperationProcessor
 {
-    public function process(array $data)
+    public function process(OperationData $data)
     {
-        if (empty($data['operation'])) {
+        if (empty($data->operation)) {
             throw new \InvalidArgumentException('Operation type required');
         }
-        return match ($data['operation']) {
+        return match ($data->operation) {
             OperationType::DEBIT->value => (new DebitOperation())->process($data),
             OperationType::CREDIT->value => (new CreditOperation())->process($data),
             OperationType::TRANSFER->value => (new TransferOperation())->process($data),

@@ -18,7 +18,8 @@ class QueueWorkerController extends Controller
                 $this->stdout("[Worker] Received: $msg\n");
                 try {
                     $data = json_decode($msg, true);
-                    $result = $processor->process($data);
+                    $dto = \app\services\OperationData::fromArray($data);
+                    $result = $processor->process($dto);
                     $this->stdout("[Worker] Processed: " . json_encode($result) . "\n");
                 } catch (\Throwable $e) {
                     $this->stderr("[Worker] Error: " . $e->getMessage() . "\n");

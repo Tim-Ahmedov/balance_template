@@ -5,6 +5,7 @@ namespace tests\unit\services\operations;
 use app\models\LockedFunds;
 use app\models\Transaction;
 use app\models\User;
+use app\services\OperationData;
 use app\services\UnlockOperation;
 use PHPUnit\Framework\TestCase;
 use Yii;
@@ -33,7 +34,7 @@ class UnlockOperationTest extends TestCase
         return $user;
     }
 
-    private function createLock($userId, $amount, $status = 'locked')
+    private function createLock($userId, $amount, $status = 'locked'): LockedFunds
     {
         $lock = new LockedFunds([
             'user_id' => $userId,
@@ -46,11 +47,11 @@ class UnlockOperationTest extends TestCase
         return $lock;
     }
 
-    public function testSuccess()
+    public function testSuccess(): void
     {
         $user = $this->createUserWithBalance(10);
         // Создаём блокировку с lock_id = 'lock-test-1' (строковый внешний id)
-        $lock = new \app\models\LockedFunds([
+        $lock = new LockedFunds([
             'user_id' => $user->id,
             'amount' => 5,
             'status' => 'locked',
@@ -60,12 +61,13 @@ class UnlockOperationTest extends TestCase
         ]);
         $lock->save(false);
         $op = new UnlockOperation();
-        $result = $op->process([
+        $result = $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'user_id' => $user->id,
             'amount' => 5,
             'operation_id' => 'unlock1',
             'lock_id' => 'lock-test-1',
-        ]);
+        ]));
         $this->assertEquals('success', $result['status']);
         $user->refresh();
         $this->assertEquals(15, $user->balance);
@@ -73,7 +75,7 @@ class UnlockOperationTest extends TestCase
         $this->assertEquals('unlocked', $lock->status);
     }
 
-    public function testDuplicate()
+    public function testDuplicate(): void
     {
         $user = $this->createUserWithBalance(10);
         $lock = $this->createLock($user->id, 5);
@@ -89,98 +91,119 @@ class UnlockOperationTest extends TestCase
         ]);
         $tr->save(false);
         $op = new UnlockOperation();
-        $result = $op->process([
+        $result = $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'user_id' => $user->id,
             'amount' => 5,
             'operation_id' => 'dup-unlock',
             'lock_id' => $lock->id,
-        ]);
+        ]));
         $this->assertEquals('duplicate', $result['status']);
     }
 
-    public function testLockNotFound()
+    public function testLockNotFound(): void
     {
         $user = $this->createUserWithBalance(10);
         $op = new UnlockOperation();
-        $result = $op->process([
+        $result = $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'user_id' => $user->id,
             'amount' => 5,
             'operation_id' => 'unlock3',
             'lock_id' => 9999,
-        ]);
+        ]));
         $this->assertEquals('error', $result['status']);
         $this->assertStringContainsString('Locked funds not found or already processed', $result['message']);
     }
 
-    public function testNegativeAmount()
+    public function testNegativeAmount(): void
     {
         $user = $this->createUserWithBalance(10);
         $lock = $this->createLock($user->id, 5);
         $op = new UnlockOperation();
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Amount must be positive');
-        $op->process([
+        $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'user_id' => $user->id,
             'amount' => -5,
             'operation_id' => 'unlock4',
             'lock_id' => $lock->id,
-        ]);
+        ]));
     }
 
-    public function testZeroAmount()
+    public function testZeroAmount(): void
     {
         $user = $this->createUserWithBalance(10);
         $lock = $this->createLock($user->id, 5);
         $op = new UnlockOperation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('user_id, amount, operation_id, lock_id required');
-        $op->process([
+        $this->expectExceptionMessage('Amount must be positive');
+        $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'user_id' => $user->id,
             'amount' => 0,
             'operation_id' => 'unlock5',
             'lock_id' => $lock->id,
-        ]);
+        ]));
     }
 
-    public function testNoOperationId()
+    public function testNoOperationId(): void
     {
         $user = $this->createUserWithBalance(10);
         $lock = $this->createLock($user->id, 5);
         $op = new UnlockOperation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('user_id, amount, operation_id, lock_id required');
-        $op->process([
+        $this->expectExceptionMessage('operation_id is required');
+        $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'user_id' => $user->id,
             'amount' => 5,
             'lock_id' => $lock->id,
-        ]);
+        ]));
     }
 
-    public function testNoUserId()
+    public function testNoUserId(): void
     {
         $user = $this->createUserWithBalance(10);
         $lock = $this->createLock($user->id, 5);
         $op = new UnlockOperation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('user_id, amount, operation_id, lock_id required');
-        $op->process([
+        $this->expectExceptionMessage('user_id is required');
+        $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'amount' => 5,
             'operation_id' => 'unlock6',
             'lock_id' => $lock->id,
-        ]);
+        ]));
     }
 
-    public function testNoAmount()
+    public function testNoAmount(): void
     {
         $user = $this->createUserWithBalance(10);
         $lock = $this->createLock($user->id, 5);
         $op = new UnlockOperation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('user_id, amount, operation_id, lock_id required');
-        $op->process([
+        $this->expectExceptionMessage('Amount must be positive');
+        $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
             'user_id' => $user->id,
             'operation_id' => 'unlock7',
             'lock_id' => $lock->id,
-        ]);
+        ]));
+    }
+
+    public function testNoLockId(): void
+    {
+        $user = $this->createUserWithBalance(10);
+        $op = new UnlockOperation();
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('lock_id is required');
+        $op->process(OperationData::fromArray([
+            'operation' => 'unlock',
+            'user_id' => $user->id,
+            'amount' => 5,
+            'operation_id' => 'unlock8',
+        ]));
     }
 }

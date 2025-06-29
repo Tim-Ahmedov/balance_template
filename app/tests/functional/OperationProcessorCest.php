@@ -36,7 +36,7 @@ class OperationProcessorCest
             'amount' => 50,
             'operation_id' => 'func-debit-1',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('success', $result['status']);
         $user->refresh();
         $I->assertEquals(50, $user->balance);
@@ -54,7 +54,7 @@ class OperationProcessorCest
             'amount' => 50,
             'operation_id' => 'func-debit-2',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('error', $result['status']);
         $I->assertTrue(strpos(mb_strtolower($result['message']), 'insufficient funds') !== false);
     }
@@ -71,7 +71,7 @@ class OperationProcessorCest
             'amount' => 20,
             'operation_id' => 'func-credit-1',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('success', $result['status']);
         $user->refresh();
         $I->assertEquals(30, $user->balance);
@@ -93,7 +93,7 @@ class OperationProcessorCest
             'amount' => 30,
             'operation_id' => 'func-transfer-1',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('success', $result['status']);
         $from->refresh();
         $to->refresh();
@@ -117,7 +117,7 @@ class OperationProcessorCest
             'amount' => 30,
             'operation_id' => 'func-transfer-2',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('error', $result['status']);
         $I->assertTrue(strpos(mb_strtolower($result['message']), 'insufficient funds') !== false);
     }
@@ -135,7 +135,7 @@ class OperationProcessorCest
             'operation_id' => 'func-lock-1',
             'lock_id' => 'lock-1',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('success', $result['status']);
         $user->refresh();
         $I->assertEquals(60, $user->balance);
@@ -155,7 +155,7 @@ class OperationProcessorCest
             'operation_id' => 'func-lock-2',
             'lock_id' => 'lock-2',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('error', $result['status']);
         $I->assertTrue(strpos(mb_strtolower($result['message']), 'insufficient funds') !== false);
     }
@@ -174,7 +174,7 @@ class OperationProcessorCest
             'operation_id' => 'func-unlock-lock-1',
             'lock_id' => 'lock-3',
         ];
-        $processor->process($lockData);
+        $processor->process(\app\services\OperationData::fromArray($lockData));
         // Теперь разблокируем
         $unlockData = [
             'operation' => 'unlock',
@@ -183,7 +183,7 @@ class OperationProcessorCest
             'operation_id' => 'func-unlock-1',
             'lock_id' => 'lock-3',
         ];
-        $result = $processor->process($unlockData);
+        $result = $processor->process(\app\services\OperationData::fromArray($unlockData));
         $I->assertEquals('success', $result['status']);
         $user->refresh();
         $I->assertEquals(100, $user->balance);
@@ -203,7 +203,7 @@ class OperationProcessorCest
             'operation_id' => 'func-unlock-2',
             'lock_id' => 'lock-404',
         ];
-        $result = $processor->process($data);
+        $result = $processor->process(\app\services\OperationData::fromArray($data));
         $I->assertEquals('error', $result['status']);
         $I->assertTrue(strpos(mb_strtolower($result['message']), 'locked funds not found or already processed') !== false);
     }

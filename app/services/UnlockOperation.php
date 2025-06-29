@@ -9,43 +9,36 @@ use Yii;
 
 class UnlockOperation
 {
-    public function process(array $data)
+    public function process(OperationData $data)
     {
         \Yii::info([
             'msg' => 'Start unlock',
-            'data' => $data,
+            'data' => (array)$data,
         ], 'balance.operations');
-        if (empty($data['user_id']) || empty($data['amount']) || empty($data['operation_id']) || empty($data['lock_id'])) {
-            throw new \InvalidArgumentException('user_id, amount, operation_id, lock_id required');
-        }
-        $userId = (int)$data['user_id'];
-        $amount = (float)$data['amount'];
-        $operationId = $data['operation_id'];
-        $lockId = $data['lock_id'];
-        if ($amount <= 0) {
+        if ($data->amount <= 0) {
             throw new \InvalidArgumentException('Amount must be positive');
         }
-        if (Transaction::find()->where(['operation_id' => $operationId, 'type' => OperationType::UNLOCK->value])->exists()) {
+        if (Transaction::find()->where(['operation_id' => $data->operation_id, 'type' => OperationType::UNLOCK->value])->exists()) {
             \Yii::info([
                 'msg' => 'Duplicate unlock',
-                'operation_id' => $operationId,
-                'user_id' => $userId,
-                'lock_id' => $lockId,
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
+                'lock_id' => $data->lock_id,
             ], 'balance.operations');
             return ['status' => 'duplicate'];
         }
         $transaction = Yii::$app->db->beginTransaction();
         try {
-            $lock = LockedFunds::findOne(['lock_id' => $lockId, 'user_id' => $userId, 'status' => 'locked']);
+            $lock = LockedFunds::findOne(['lock_id' => $data->lock_id, 'user_id' => $data->user_id, 'status' => 'locked']);
             if (!$lock) {
                 $transaction->rollBack();
                 return ['status' => 'error', 'message' => 'Locked funds not found or already processed'];
             }
-            if (!empty($data['confirm'])) {
+            if (!empty($data->confirm)) {
                 $lock->status = 'charged';
             } else {
-                $user = User::findForUpdateOrCreate($userId);
-                $user->balance += $amount;
+                $user = User::findForUpdateOrCreate($data->user_id);
+                $user->balance += $data->amount;
                 if (!$user->save(false)) {
                     $transaction->rollBack();
                     return ['status' => 'error', 'message' => 'Failed to update balance'];
@@ -57,11 +50,11 @@ class UnlockOperation
                 return ['status' => 'error', 'message' => 'Failed to update locked funds'];
             }
             $tr = new Transaction([
-                'user_id' => $userId,
+                'user_id' => $data->user_id,
                 'type' => OperationType::UNLOCK->value,
-                'amount' => $amount,
+                'amount' => $data->amount,
                 'status' => 'confirmed',
-                'operation_id' => $operationId,
+                'operation_id' => $data->operation_id,
                 'related_user_id' => $lock->user_id,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -73,19 +66,19 @@ class UnlockOperation
             $transaction->commit();
             \Yii::info([
                 'msg' => 'Unlock success',
-                'operation_id' => $operationId,
-                'user_id' => $userId,
-                'lock_id' => $lockId,
-                'amount' => $amount,
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
+                'lock_id' => $data->lock_id,
+                'amount' => $data->amount,
             ], 'balance.operations');
             Yii::$app->amqpQueue->sendEvent(json_encode([
                 'event' => 'funds_unlocked',
-                'user_id' => $userId,
-                'amount' => $amount,
+                'user_id' => $data->user_id,
+                'amount' => $data->amount,
                 'operation' => OperationType::UNLOCK->value,
-                'operation_id' => $operationId,
-                'lock_id' => $lockId,
-                'status' => !empty($data['confirm']) ? 'charged' : 'unlocked',
+                'operation_id' => $data->operation_id,
+                'lock_id' => $data->lock_id,
+                'status' => !empty($data->confirm) ? 'charged' : 'unlocked',
                 'timestamp' => date('c'),
             ], JSON_THROW_ON_ERROR));
             return ['status' => 'success'];
@@ -93,9 +86,9 @@ class UnlockOperation
             $transaction->rollBack();
             \Yii::error([
                 'msg' => 'Unlock error',
-                'operation_id' => $data['operation_id'],
-                'user_id' => $data['user_id'],
-                'lock_id' => $data['lock_id'],
+                'operation_id' => $data->operation_id,
+                'user_id' => $data->user_id,
+                'lock_id' => $data->lock_id,
                 'error' => $e->getMessage(),
             ], 'balance.operations');
             return ['status' => 'error', 'message' => $e->getMessage()];
